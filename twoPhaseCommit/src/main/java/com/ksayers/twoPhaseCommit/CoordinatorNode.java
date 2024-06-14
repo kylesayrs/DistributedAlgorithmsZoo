@@ -10,6 +10,7 @@ import java.util.concurrent.Executors;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
@@ -19,12 +20,14 @@ public class CoordinatorNode {
     HashMap<String, InetSocketAddress> nodeList = new HashMap<String, InetSocketAddress>();
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
     HttpServer server;
+    InetSocketAddress address = new InetSocketAddress("localhost", 8000);
 
-    public CoordinatorNode() throws IOException{
-        server = HttpServer.create(new InetSocketAddress("localhost", 8001), 10);
-        server.createContext("/test", new CoordinatorNodeHttpHandler());
+    public CoordinatorNode() throws IOException {
+        server = HttpServer.create(address, 10);
+        server.createContext("/register", new CoordinatorNodeHttpHandler());
         server.setExecutor(serverThreadPool);
         server.start();
+        System.out.println(String.format("Listening on %s", address));
     }
     
     static void sendReady() {
@@ -32,8 +35,6 @@ public class CoordinatorNode {
     }
 
     public static void main(String[] args) throws IOException {
-        System.out.println("main");
-
         @SuppressWarnings("unused")
         CoordinatorNode node = new CoordinatorNode();
     }
@@ -74,7 +75,7 @@ public class CoordinatorNode {
             }
 
             // input validation
-            if (!requestJson.has("nodeId") || !requestJson.has("address") || !requestJson.has("port")) {
+            if (!requestJson.has("nodeId") || !requestJson.has("hostname") || !requestJson.has("port")) {
                 sendErrorResponse(httpExchange);
                 return;
             }
@@ -82,7 +83,7 @@ public class CoordinatorNode {
             // update node list
             nodeList.put(
                 requestJson.getString("nodeId"),
-                new InetSocketAddress(requestJson.getString("address"), requestJson.getInt("port"))
+                new InetSocketAddress(requestJson.getString("hostname"), requestJson.getInt("port"))
             );
             System.out.println(nodeList);
 
@@ -91,9 +92,12 @@ public class CoordinatorNode {
             httpExchange.sendResponseHeaders(200, 0);
             outputStream.flush();
             outputStream.close();
+            System.out.println("sent response");
         }
 
         private void sendErrorResponse(HttpExchange httpExchange) {
+            System.out.println("Invalid request");
+
             OutputStream outputStream = httpExchange.getResponseBody();
             try {
                 httpExchange.sendResponseHeaders(400, 0);
