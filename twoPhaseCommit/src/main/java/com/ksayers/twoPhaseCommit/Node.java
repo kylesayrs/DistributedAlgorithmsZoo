@@ -16,12 +16,16 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 
 
 public class Node {
     InetSocketAddress coordinatorAddress = new InetSocketAddress("localhost", 8000);
-    ArrayList<Integer> ledger;
+    ArrayList<Integer> readyLedger;
+    ArrayList<Integer> commitLedger;
 
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
     HttpServer server;
@@ -34,6 +38,8 @@ public class Node {
         address = new InetSocketAddress("localhost", port);
         server = HttpServer.create(address, 5);
         server.createContext("/ready", new ReadyHttpHandler());
+        server.createContext("/commit", new CommitHttpHandler());
+        server.createContext("/commit", new AbortHttpHandler());
         server.setExecutor(serverThreadPool);
         server.start();
 
@@ -58,6 +64,9 @@ public class Node {
             coordinatorAddress.getHostName(),
             coordinatorAddress.getPort()
         )).toURL();
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setDoOutput(true);
+        System.out.println(String.format("Sending register request to %s", url));
 
         // construct payload
         Map<String, Object> jsonMap = new HashMap<String, Object>();
@@ -70,9 +79,6 @@ public class Node {
         String payload = jsonObject.toString();
 
         // send request
-        System.out.println(String.format("Sending register request to %s", url));
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setDoOutput(true);
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Content-Length", Integer.toString(payload.getBytes().length));
@@ -81,18 +87,105 @@ public class Node {
         outputStream.close();
 
         // get response
-        if (connection.getResponseCode() != 200) {
+        if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
             System.err.println("Could not register with coordinator node");
             return;
+        } else {
+            System.out.println("Successfully registered with coordinator");
         }
 
-        System.out.println("Successfully registered with coordinator");
+        connection.disconnect();
     }
 
     private class ReadyHttpHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange httpExchange) {
+            if (!httpExchange.getRequestMethod().equals("PUT")) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
 
+            try {
+                InputStream requestBodyStream = httpExchange.getRequestBody();
+                byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
+                String requestBody = new String(requestBodyBytes);
+                readyLedger.add(Integer.parseInt(requestBody));
+
+                // send okay response
+                OutputStream outputStream = httpExchange.getResponseBody();
+                httpExchange.sendResponseHeaders(200, 0);
+                outputStream.flush();
+                outputStream.close();
+
+            } catch (Exception exception) {
+                exception.printStackTrace();
+            }
         }
     }
+
+    private class CommitHttpHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange httpExchange) {
+            if (!httpExchange.getRequestMethod().equals("PUT")) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
+
+            try {
+                InputStream requestBodyStream = httpExchange.getRequestBody();
+                byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
+                String requestBody = new String(requestBodyBytes);
+                commitLedger.add(Integer.parseInt(requestBody));
+
+                // send okay response
+                OutputStream outputStream = httpExchange.getResponseBody();
+                httpExchange.sendResponseHeaders(200, 0);
+                outputStream.flush();
+                outputStream.close();
+
+            } catch (Exception exception) {
+                exception.printStackTrace();
+            }
+        }
+    }
+
+    private class AbortHttpHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange httpExchange) {
+            if (!httpExchange.getRequestMethod().equals("PUT")) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
+
+            try {
+                InputStream requestBodyStream = httpExchange.getRequestBody();
+                byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
+                String requestBody = new String(requestBodyBytes);
+                //commitLedger.add(Integer.parseInt(requestBody));
+
+                // send okay response
+                OutputStream outputStream = httpExchange.getResponseBody();
+                httpExchange.sendResponseHeaders(200, 0);
+                outputStream.flush();
+                outputStream.close();
+
+            } catch (Exception exception) {
+                exception.printStackTrace();
+            }
+        }
+    }
+
+    private static void sendErrorResponse(HttpExchange httpExchange) {
+            System.out.println("Invalid request");
+
+            OutputStream outputStream = httpExchange.getResponseBody();
+            try {
+                httpExchange.sendResponseHeaders(400, 0);
+                outputStream.flush();
+                outputStream.close();
+
+            } catch (IOException exception) {
+                exception.printStackTrace();
+            }
+        }
 }

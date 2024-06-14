@@ -1,10 +1,14 @@
 package com.ksayers.twoPhaseCommit;
 
+import java.util.Map;
 import java.util.HashMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URL;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.Executors;
 
@@ -17,7 +21,7 @@ import com.sun.net.httpserver.HttpExchange;
 
 
 public class CoordinatorNode {
-    HashMap<String, InetSocketAddress> nodeList = new HashMap<String, InetSocketAddress>();
+    Map<String, InetSocketAddress> nodeList = new HashMap<String, InetSocketAddress>();
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
     HttpServer server;
     InetSocketAddress address = new InetSocketAddress("localhost", 8000);
@@ -29,9 +33,56 @@ public class CoordinatorNode {
         server.start();
         System.out.println(String.format("Listening on %s", address));
     }
-    
-    static void sendReady() {
-        System.out.println("Sending ready");
+
+    public void sendReady(Integer message) {
+        sendMessageToNodes("ready", message);
+    }
+
+    public void sendCommit(Integer message) {
+        sendMessageToNodes("commit", message);
+    }
+
+    public void sendAbort(Integer message) {
+        sendMessageToNodes("abort", message);
+    }
+
+    private void sendMessageToNodes(String path, Integer message) {
+        for (Map.Entry<String, InetSocketAddress> entry : nodeList.entrySet()) {
+            String nodeId = entry.getKey();
+            InetSocketAddress address = entry.getValue();
+            
+            try {
+                URL url = new URI(String.format(
+                    "http://%s:%s/%s",
+                    address.getHostName(),
+                    address.getPort(),
+                    path
+                )).toURL();
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("PUT");
+                connection.setDoOutput(true);
+                
+                // send commit message
+                OutputStream outputStream = connection.getOutputStream();
+                outputStream.write(String.valueOf(message).getBytes());
+                outputStream.flush();
+                outputStream.close();
+                
+                // check response code
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    System.out.println(String.format("Commit message sent to node %s at $s", nodeId, url));
+                } else {
+                    System.err.println(String.format("Failed to send commit message node %s at $s", nodeId, url));
+                }
+                
+                connection.disconnect();
+
+            } catch (Exception exception) {
+                System.err.println(String.format("Failed to send % message node %s", path, nodeId));
+                exception.printStackTrace();
+            }
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -47,7 +98,7 @@ public class CoordinatorNode {
         public void handle(HttpExchange httpExchange) {
             try {
                 if (!httpExchange.getRequestMethod().equals("POST")) {
-                    sendErrorResponse(httpExchange);
+                    CoordinatorNode.sendErrorResponse(httpExchange);
                     return;
                 }
 
@@ -55,7 +106,7 @@ public class CoordinatorNode {
             
             } catch (IOException | JSONException exception) {
                 exception.printStackTrace();
-                sendErrorResponse(httpExchange);
+                CoordinatorNode.sendErrorResponse(httpExchange);
             }
         }
 
@@ -70,13 +121,13 @@ public class CoordinatorNode {
             }
             catch (JSONException exception) {
                 exception.printStackTrace();
-                sendErrorResponse(httpExchange);
+                CoordinatorNode.sendErrorResponse(httpExchange);
                 return;
             }
 
             // input validation
             if (!requestJson.has("nodeId") || !requestJson.has("hostname") || !requestJson.has("port")) {
-                sendErrorResponse(httpExchange);
+                CoordinatorNode.sendErrorResponse(httpExchange);
                 return;
             }
 
@@ -92,20 +143,19 @@ public class CoordinatorNode {
             httpExchange.sendResponseHeaders(200, 0);
             outputStream.flush();
             outputStream.close();
-            System.out.println("sent response");
         }
+    }
 
-        private void sendErrorResponse(HttpExchange httpExchange) {
-            System.out.println("Invalid request");
+    private static void sendErrorResponse(HttpExchange httpExchange) {
+        System.out.println("Invalid request");
 
-            OutputStream outputStream = httpExchange.getResponseBody();
-            try {
-                httpExchange.sendResponseHeaders(400, 0);
-                outputStream.flush();
-                outputStream.close();
-            } catch (IOException exception) {
-                exception.printStackTrace();;
-            }
+        OutputStream outputStream = httpExchange.getResponseBody();
+        try {
+            httpExchange.sendResponseHeaders(400, 0);
+            outputStream.flush();
+            outputStream.close();
+        } catch (IOException exception) {
+            exception.printStackTrace();
         }
     }
 }
