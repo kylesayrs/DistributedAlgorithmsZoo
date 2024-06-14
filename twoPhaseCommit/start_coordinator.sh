@@ -1,1 +1,1 @@
-mvn exec:java -Dexec.mainClass="com.ksayers.twoPhaseCommit.App"
+mvn exec:java -Dexec.mainClass="com.ksayers.twoPhaseCommit.CoordinatorNode"

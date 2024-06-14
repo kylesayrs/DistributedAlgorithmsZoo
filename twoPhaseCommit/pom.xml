@@ -7,11 +7,15 @@
   <version>1.0</version>
   <name>twoPhaseCommit</name>
   <url>http://maven.apache.org</url>
+  <properties>
+    <maven.compiler.release>22</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
   <dependencies>
     <dependency>
-      <groupId>org.apache.httpcomponents</groupId>
-      <artifactId>httpclient</artifactId>
-      <version>4.5.13</version>
+      <groupId>com.sun.net.httpserver</groupId>
+      <artifactId>http</artifactId>
+      <version>20070405</version>
     </dependency>
   </dependencies>
 </project>
