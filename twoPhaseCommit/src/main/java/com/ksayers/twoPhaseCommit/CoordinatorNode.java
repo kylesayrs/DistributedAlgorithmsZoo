@@ -38,6 +38,10 @@ public class CoordinatorNode implements AutoCloseable {
     }
 
     public boolean doTransaction(String message) {
+        return doTransaction(message, null);
+    }
+
+    public boolean doTransaction(String message, Scanner userInput) {
         // perform ready phase
         Map<String, Pair<Integer, String>> readyResponses = sendMessageToNodes("ready", message, false);
 
@@ -45,15 +49,24 @@ public class CoordinatorNode implements AutoCloseable {
         boolean readySuccess = true;
         for (Map.Entry<String, Pair<Integer, String>> entry : readyResponses.entrySet()) {
             Integer responseCode = entry.getValue().first;
-            if (responseCode != null && responseCode != HttpURLConnection.HTTP_OK) {
+            if (responseCode == null || responseCode != HttpURLConnection.HTTP_OK) {
                 readySuccess = false;
                 break;
             }
         }
+        if (readySuccess) {
+            System.out.println("All nodes are ready");
+        } else {
+            System.out.println("Not all nodes are ready, abort");
+        }
+
+        if (userInput != null) {
+            System.out.println("Press enter to continue with commit/abort phase");
+            userInput.nextLine();
+        }
 
         // if not all nodes are ready, abort
         if (!readySuccess) {
-            System.out.println("Not all nodes are ready, abort");
             sendMessageToNodes("abort", message, true);
             return false;
         }
@@ -70,7 +83,7 @@ public class CoordinatorNode implements AutoCloseable {
             
             Pair<Integer, String> nodeResponse = sendMessageToNode(nodeId, path, message);
             Integer responseCode = nodeResponse.first;
-            while (retryForever && (responseCode == null || responseCode != HttpURLConnection.HTTP_OK)) {
+            while (retryForever && responseCode == null) {
                 System.err.println(String.format("Failed to send %s message to node %s", path, nodeId));
                 nodeResponse = sendMessageToNode(nodeId, path, message);
                 responseCode = nodeResponse.first;
@@ -93,6 +106,7 @@ public class CoordinatorNode implements AutoCloseable {
                 path
             )).toURL();
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setConnectTimeout(1000);
             connection.setRequestMethod("PUT");
             connection.setDoOutput(true);
             
@@ -139,14 +153,15 @@ public class CoordinatorNode implements AutoCloseable {
                 break;
             }
 
-            if (input.equals("transaction")) {
+            if (input.equals("t")) {
                 System.out.println("Enter message to send to nodes");
                 String message = userInput.nextLine();
-                node.doTransaction(message);
+                node.doTransaction(message, userInput);
             }
         }
         userInput.close();
         node.close();
+        System.exit(0);
     }
 
     /*

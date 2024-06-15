@@ -3,6 +3,7 @@ package com.ksayers.twoPhaseCommit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -28,7 +29,7 @@ public class Node {
     ArrayList<String> commitLedger = new ArrayList<String>();
 
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
-    HttpServer server;
+    HttpServer server = null;
 
     String nodeId;
     InetSocketAddress address = null;
@@ -36,15 +37,32 @@ public class Node {
     public Node(String _nodeId, Integer port) throws Exception {
         nodeId = _nodeId;
         address = new InetSocketAddress("localhost", port);
-        server = HttpServer.create(address, 5);
-        server.createContext("/ready", new ReadyHttpHandler());
-        server.createContext("/commit", new CommitHttpHandler());
-        server.createContext("/abort", new AbortHttpHandler());
-        server.setExecutor(serverThreadPool);
-        server.start();
+        goOnline();
 
         // register with coordinator
         registerNode();
+    }
+
+    public void goOnline() throws Exception {
+        if (server == null) {
+            server = HttpServer.create(address, 5);
+            server.createContext("/ready", new ReadyHttpHandler());
+            server.createContext("/commit", new CommitHttpHandler());
+            server.createContext("/abort", new AbortHttpHandler());
+            server.setExecutor(serverThreadPool);
+            server.start();
+        }
+
+        System.out.println(String.format("Node %s online", nodeId));
+    }
+
+    public void goOffline() {
+        if (server != null) {
+            server.stop(1);
+            server = null;
+        }
+
+        System.out.println(String.format("Node %s offline", nodeId));
     }
 
     public static void main(String[] args) throws Exception {
@@ -53,8 +71,26 @@ public class Node {
             return;
         }
 
-        @SuppressWarnings("unused")
         Node node = new Node(args[0], Integer.parseInt(args[1]));
+
+        Scanner userInput = new Scanner(System.in);
+        while (userInput.hasNext()) {
+            String input = userInput.nextLine();
+
+            if (input.equals("exit")) {
+                break;
+            }
+
+            if (input.equals("online")) {
+                node.goOnline();
+            }
+
+            if (input.equals("offline")) {
+                node.goOffline();
+            }
+        }
+        userInput.close();
+        System.exit(0);
     }
 
     private void registerNode() throws Exception {
@@ -196,6 +232,7 @@ public class Node {
 
             // abort commit
             readyLedger.remove(requestBody);  // do not check return value
+            System.out.println(String.format("Aborted %s", requestBody));
 
             // send okay response
             try {
