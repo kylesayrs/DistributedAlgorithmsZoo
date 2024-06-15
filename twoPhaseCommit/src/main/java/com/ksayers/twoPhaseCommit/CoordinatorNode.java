@@ -40,13 +40,12 @@ public class CoordinatorNode implements AutoCloseable {
     public boolean doTransaction(String message) {
         // perform ready phase
         Map<String, Pair<Integer, String>> readyResponses = sendMessageToNodes("ready", message, false);
-        System.out.println(readyResponses);
 
         // check if any nodes are not ready
         boolean readySuccess = true;
         for (Map.Entry<String, Pair<Integer, String>> entry : readyResponses.entrySet()) {
             Integer responseCode = entry.getValue().first;
-            if (responseCode != HttpURLConnection.HTTP_OK) {
+            if (responseCode != null && responseCode != HttpURLConnection.HTTP_OK) {
                 readySuccess = false;
                 break;
             }
@@ -71,7 +70,7 @@ public class CoordinatorNode implements AutoCloseable {
             
             Pair<Integer, String> nodeResponse = sendMessageToNode(nodeId, path, message);
             Integer responseCode = nodeResponse.first;
-            while (retryForever && responseCode != HttpURLConnection.HTTP_OK) {
+            while (retryForever && (responseCode == null || responseCode != HttpURLConnection.HTTP_OK)) {
                 System.err.println(String.format("Failed to send %s message to node %s", path, nodeId));
                 nodeResponse = sendMessageToNode(nodeId, path, message);
                 responseCode = nodeResponse.first;
@@ -97,7 +96,7 @@ public class CoordinatorNode implements AutoCloseable {
             connection.setRequestMethod("PUT");
             connection.setDoOutput(true);
             
-            // send commit message
+            // send message
             OutputStream outputStream = connection.getOutputStream();
             outputStream.write(message.getBytes());
             outputStream.flush();
@@ -106,9 +105,10 @@ public class CoordinatorNode implements AutoCloseable {
             // check response code
             int responseCode = connection.getResponseCode();
             if (responseCode == HttpURLConnection.HTTP_OK) {
-                System.out.println(String.format("Commit message sent to node %s at $s", nodeId, url));
+                System.out.println(String.format("Successfully sent %s message to %s at %s", path, nodeId, url));
             } else {
-                System.err.println(String.format("Failed to send commit message node %s at $s", nodeId, url));
+                System.err.println(String.format("Failed to send %s message node %s at %s", path, nodeId, url));
+                return new Pair<Integer,String>(responseCode, null);
             }
 
             // get response body
@@ -121,7 +121,7 @@ public class CoordinatorNode implements AutoCloseable {
             return new Pair<Integer,String>(responseCode, responseBody);
 
         } catch (Exception exception) {
-            System.err.println(String.format("Failed to send % message node %s", path, nodeId));
+            System.err.println(String.format("Failed to send %s message node %s", path, nodeId));
             exception.printStackTrace();
 
             return new Pair<Integer,String>(null, null);
@@ -135,7 +135,7 @@ public class CoordinatorNode implements AutoCloseable {
         while (userInput.hasNext()) {
             String input = userInput.nextLine();
 
-            if (input.equals("asdf")) {
+            if (input.equals("exit")) {
                 break;
             }
 
@@ -195,7 +195,7 @@ public class CoordinatorNode implements AutoCloseable {
                 requestJson.getString("nodeId"),
                 new InetSocketAddress(requestJson.getString("hostname"), requestJson.getInt("port"))
             );
-            System.out.println(nodeList);
+            System.out.println(String.format("Added new node: %s", nodeList));
 
             // send okay response
             OutputStream outputStream = httpExchange.getResponseBody();

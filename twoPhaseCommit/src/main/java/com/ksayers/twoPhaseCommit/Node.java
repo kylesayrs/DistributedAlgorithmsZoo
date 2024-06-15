@@ -24,8 +24,8 @@ import java.net.HttpURLConnection;
 
 public class Node {
     InetSocketAddress coordinatorAddress = new InetSocketAddress("localhost", 8000);
-    ArrayList<String> readyLedger;
-    ArrayList<String> commitLedger;
+    ArrayList<String> readyLedger = new ArrayList<String>();
+    ArrayList<String> commitLedger = new ArrayList<String>();
 
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
     HttpServer server;
@@ -39,7 +39,7 @@ public class Node {
         server = HttpServer.create(address, 5);
         server.createContext("/ready", new ReadyHttpHandler());
         server.createContext("/commit", new CommitHttpHandler());
-        server.createContext("/commit", new AbortHttpHandler());
+        server.createContext("/abort", new AbortHttpHandler());
         server.setExecutor(serverThreadPool);
         server.start();
 
@@ -114,12 +114,15 @@ public class Node {
 
             // check if can ready
             if (readyLedger.contains(requestBody) || commitLedger.contains(requestBody)) {
+                System.out.println(String.format("Cannot ready %s %s", readyLedger, commitLedger));
                 Node.sendErrorResponse(httpExchange);
                 return;
             }
 
             // mark as ready
-            assert readyLedger.add(requestBody);
+            boolean addSuccess = readyLedger.add(requestBody);
+            assert addSuccess;
+            System.out.println(String.format("Readied %s %s", readyLedger, commitLedger));
 
             // send okay response
             try {
@@ -127,8 +130,9 @@ public class Node {
                 httpExchange.sendResponseHeaders(200, 0);
                 outputStream.flush();
                 outputStream.close();
-            } catch (IOException exception) {
+            } catch (Exception exception) {
                 exception.printStackTrace();
+                Node.sendErrorResponse(httpExchange);
             }
         }
     }
@@ -150,13 +154,17 @@ public class Node {
 
             // check if can commit
             if (!readyLedger.contains(requestBody) || commitLedger.contains(requestBody)) {
+                System.out.println(String.format("Cannot commit %s %s", readyLedger, commitLedger));
                 Node.sendErrorResponse(httpExchange);
                 return;
             }
 
             // perform commit
-            assert commitLedger.add(requestBody);
-            assert readyLedger.remove(requestBody);
+            boolean commitSuccess = commitLedger.add(requestBody);
+            assert commitSuccess;
+            boolean readySuccess = readyLedger.remove(requestBody);
+            assert readySuccess;
+            System.out.println(String.format("Committed %s %s", readyLedger, commitLedger));
 
             // send okay response
             try {
@@ -164,8 +172,9 @@ public class Node {
                 httpExchange.sendResponseHeaders(200, 0);
                 outputStream.flush();
                 outputStream.close();
-            } catch (IOException exception) {
+            } catch (Exception exception) {
                 exception.printStackTrace();
+                Node.sendErrorResponse(httpExchange);
             }
         }
     }
@@ -194,8 +203,9 @@ public class Node {
                 httpExchange.sendResponseHeaders(200, 0);
                 outputStream.flush();
                 outputStream.close();
-            } catch (IOException exception) {
+            } catch (Exception exception) {
                 exception.printStackTrace();
+                Node.sendErrorResponse(httpExchange);
             }
         }
     }
