@@ -13,6 +13,7 @@
   </properties>
   <dependencies>
     <dependency>
+      <!-- https://mvnrepository.com/artifact/com.sun.httpserver/httpserver -->
       <groupId>com.sun.net.httpserver</groupId>
       <artifactId>http</artifactId>
       <version>20070405</version>

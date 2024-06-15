@@ -24,8 +24,8 @@ import java.net.HttpURLConnection;
 
 public class Node {
     InetSocketAddress coordinatorAddress = new InetSocketAddress("localhost", 8000);
-    ArrayList<Integer> readyLedger;
-    ArrayList<Integer> commitLedger;
+    ArrayList<String> readyLedger;
+    ArrayList<String> commitLedger;
 
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
     HttpServer server;

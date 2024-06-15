@@ -1,6 +1,8 @@
 package com.ksayers.twoPhaseCommit;
 
 import java.util.Map;
+import java.util.Scanner;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,6 +14,8 @@ import java.net.URL;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.Executors;
 
+import com.ksayers.twoPhaseCommit.utils.Pair;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -20,7 +24,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 
-public class CoordinatorNode {
+public class CoordinatorNode implements AutoCloseable {
     Map<String, InetSocketAddress> nodeList = new HashMap<String, InetSocketAddress>();
     ThreadPoolExecutor serverThreadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(10);
     HttpServer server;
@@ -34,19 +38,24 @@ public class CoordinatorNode {
         System.out.println(String.format("Listening on %s", address));
     }
 
-    public void sendReady(Integer message) {
-        sendMessageToNodes("ready", message);
+    public boolean doTransaction(String message) {
+        Pair<ArrayList<Integer>, ArrayList<String>> readyResponses = sendMessageToNodes("ready", message);
+        System.out.println(readyResponses);
+
+        return true;
     }
 
-    public void sendCommit(Integer message) {
-        sendMessageToNodes("commit", message);
-    }
+    /**
+     * Sends a message to all nodes in the nodeList.
+     * 
+     * @param path The path to send the message to.
+     * @param message The message to send.
+     * @return A Pair object containing the response codes and response bodies from each node.
+     */
+    private Pair<ArrayList<Integer>, ArrayList<String>> sendMessageToNodes(String path, String message) {
+        ArrayList<Integer> responseCodes = new ArrayList<Integer>();
+        ArrayList<String> responseBodies = new ArrayList<String>();
 
-    public void sendAbort(Integer message) {
-        sendMessageToNodes("abort", message);
-    }
-
-    private void sendMessageToNodes(String path, Integer message) {
         for (Map.Entry<String, InetSocketAddress> entry : nodeList.entrySet()) {
             String nodeId = entry.getKey();
             InetSocketAddress address = entry.getValue();
@@ -64,7 +73,7 @@ public class CoordinatorNode {
                 
                 // send commit message
                 OutputStream outputStream = connection.getOutputStream();
-                outputStream.write(String.valueOf(message).getBytes());
+                outputStream.write(message.getBytes());
                 outputStream.flush();
                 outputStream.close();
                 
@@ -75,19 +84,48 @@ public class CoordinatorNode {
                 } else {
                     System.err.println(String.format("Failed to send commit message node %s at $s", nodeId, url));
                 }
+
+                // get response body
+                InputStream inputStream = connection.getInputStream();
+                byte[] responseBodyBytes = inputStream.readAllBytes();
+                String responseBody = new String(responseBodyBytes);
                 
                 connection.disconnect();
+
+                responseCodes.add(responseCode);
+                responseBodies.add(responseBody);
 
             } catch (Exception exception) {
                 System.err.println(String.format("Failed to send % message node %s", path, nodeId));
                 exception.printStackTrace();
+
+                responseCodes.add(null);
+                responseBodies.add(null);
             }
         }
+
+        return new Pair<ArrayList<Integer>, ArrayList<String>>(responseCodes, responseBodies);
     }
 
     public static void main(String[] args) throws IOException {
-        @SuppressWarnings("unused")
         CoordinatorNode node = new CoordinatorNode();
+
+        Scanner userInput = new Scanner(System.in);
+        while (userInput.hasNext()) {
+            String input = userInput.nextLine();
+
+            if (input.equals("asdf")) {
+                break;
+            }
+
+            if (input.equals("transaction")) {
+                System.out.println("Enter message to send to nodes");
+                String message = userInput.nextLine();
+                node.doTransaction(message);
+            }
+        }
+        userInput.close();
+        node.close();
     }
 
     /*
@@ -157,5 +195,9 @@ public class CoordinatorNode {
         } catch (IOException exception) {
             exception.printStackTrace();
         }
+    }
+
+    public void close() {
+        server.stop(0);
     }
 }
