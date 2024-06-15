@@ -241,7 +241,6 @@ public class Node {
                 outputStream.flush();
                 outputStream.close();
             } catch (Exception exception) {
-                exception.printStackTrace();
                 Node.sendErrorResponse(httpExchange);
             }
         }
@@ -255,7 +254,7 @@ public class Node {
             return new String(requestBodyBytes);
 
         } catch (IOException exception) {
-            exception.printStackTrace();
+
             return null;
         }
     }

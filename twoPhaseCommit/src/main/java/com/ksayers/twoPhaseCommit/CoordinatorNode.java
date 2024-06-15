@@ -84,7 +84,6 @@ public class CoordinatorNode implements AutoCloseable {
             Pair<Integer, String> nodeResponse = sendMessageToNode(nodeId, path, message);
             Integer responseCode = nodeResponse.first;
             while (retryForever && responseCode == null) {
-                System.err.println(String.format("Failed to send %s message to node %s", path, nodeId));
                 nodeResponse = sendMessageToNode(nodeId, path, message);
                 responseCode = nodeResponse.first;
             }
@@ -136,7 +135,6 @@ public class CoordinatorNode implements AutoCloseable {
 
         } catch (Exception exception) {
             System.err.println(String.format("Failed to send %s message node %s", path, nodeId));
-            exception.printStackTrace();
 
             return new Pair<Integer,String>(null, null);
         }
@@ -179,7 +177,6 @@ public class CoordinatorNode implements AutoCloseable {
                 registerNode(httpExchange);
             
             } catch (IOException | JSONException exception) {
-                exception.printStackTrace();
                 CoordinatorNode.sendErrorResponse(httpExchange);
             }
         }
@@ -194,7 +191,6 @@ public class CoordinatorNode implements AutoCloseable {
                 requestJson = new JSONObject(requestBody);
             }
             catch (JSONException exception) {
-                exception.printStackTrace();
                 CoordinatorNode.sendErrorResponse(httpExchange);
                 return;
             }
