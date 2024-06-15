@@ -105,19 +105,22 @@ public class Node {
                 return;
             }
 
-            try {
-                InputStream requestBodyStream = httpExchange.getRequestBody();
-                byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
-                String requestBody = new String(requestBodyBytes);
-                readyLedger.add(Integer.parseInt(requestBody));
+            // extract request body
+            String requestBody = getRequestBody(httpExchange);
+            if (requestBody == null) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
 
-                // send okay response
+            // mark as ready
+
+            // send okay response
+            try {
                 OutputStream outputStream = httpExchange.getResponseBody();
                 httpExchange.sendResponseHeaders(200, 0);
                 outputStream.flush();
                 outputStream.close();
-
-            } catch (Exception exception) {
+            } catch (IOException exception) {
                 exception.printStackTrace();
             }
         }
@@ -131,19 +134,22 @@ public class Node {
                 return;
             }
 
-            try {
-                InputStream requestBodyStream = httpExchange.getRequestBody();
-                byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
-                String requestBody = new String(requestBodyBytes);
-                commitLedger.add(Integer.parseInt(requestBody));
+            // extract request body
+            String requestBody = getRequestBody(httpExchange);
+            if (requestBody == null) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
 
-                // send okay response
+            // complete commit
+
+            // send okay response
+            try {
                 OutputStream outputStream = httpExchange.getResponseBody();
                 httpExchange.sendResponseHeaders(200, 0);
                 outputStream.flush();
                 outputStream.close();
-
-            } catch (Exception exception) {
+            } catch (IOException exception) {
                 exception.printStackTrace();
             }
         }
@@ -157,35 +163,50 @@ public class Node {
                 return;
             }
 
-            try {
-                InputStream requestBodyStream = httpExchange.getRequestBody();
-                byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
-                String requestBody = new String(requestBodyBytes);
-                //commitLedger.add(Integer.parseInt(requestBody));
+            // extract request body
+            String requestBody = getRequestBody(httpExchange);
+            if (requestBody == null) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
 
-                // send okay response
+            // abort commit
+
+            // send okay response
+            try {
                 OutputStream outputStream = httpExchange.getResponseBody();
                 httpExchange.sendResponseHeaders(200, 0);
                 outputStream.flush();
                 outputStream.close();
-
-            } catch (Exception exception) {
+            } catch (IOException exception) {
                 exception.printStackTrace();
             }
         }
     }
 
-    private static void sendErrorResponse(HttpExchange httpExchange) {
-            System.out.println("Invalid request");
+    private static String getRequestBody(HttpExchange httpExchange) {
+        try {
+            InputStream requestBodyStream = httpExchange.getRequestBody();
+            byte[] requestBodyBytes = requestBodyStream.readNBytes(100);
 
-            OutputStream outputStream = httpExchange.getResponseBody();
-            try {
-                httpExchange.sendResponseHeaders(400, 0);
-                outputStream.flush();
-                outputStream.close();
+            return new String(requestBodyBytes);
 
-            } catch (IOException exception) {
-                exception.printStackTrace();
-            }
+        } catch (IOException exception) {
+            exception.printStackTrace();
+            return null;
         }
+    }
+
+    private static void sendErrorResponse(HttpExchange httpExchange) {
+        System.out.println("Invalid request");
+
+        OutputStream outputStream = httpExchange.getResponseBody();
+        try {
+            httpExchange.sendResponseHeaders(400, 0);
+            outputStream.flush();
+            outputStream.close();
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+    }
 }
