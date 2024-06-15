@@ -112,7 +112,14 @@ public class Node {
                 return;
             }
 
+            // check if can ready
+            if (readyLedger.contains(requestBody) || commitLedger.contains(requestBody)) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
+
             // mark as ready
+            assert readyLedger.add(requestBody);
 
             // send okay response
             try {
@@ -141,7 +148,15 @@ public class Node {
                 return;
             }
 
-            // complete commit
+            // check if can commit
+            if (!readyLedger.contains(requestBody) || commitLedger.contains(requestBody)) {
+                Node.sendErrorResponse(httpExchange);
+                return;
+            }
+
+            // perform commit
+            assert commitLedger.add(requestBody);
+            assert readyLedger.remove(requestBody);
 
             // send okay response
             try {
@@ -171,6 +186,7 @@ public class Node {
             }
 
             // abort commit
+            readyLedger.remove(requestBody);  // do not check return value
 
             // send okay response
             try {
